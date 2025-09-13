@@ -1,0 +1,172 @@
+# Copyright 2022 Think    command: \"--db-file /mnt/mgmt_tgt_mgmt01/mgmtd.sqlite  --interfaces ${INTERFACES}  --log-target stderr --auth-disable=true\"arQ GmbH
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+services:
+  beegfs-management:
+    image: ghcr.io/thinkparq/beegfs-mgmtd:8.1
+    container_name: beegfs-mgmtd
+    privileged: true
+    network_mode: "host"
+    cap_add:
+      - IPC_LOCK    
+    command: "--db-file /mnt/mgmt_tgt_mgmt01/mgmtd.sqlite  --interfaces ${INTERFACES}  --log-target stderr --tls-disable true --auth-disable true"
+    environment:
+      - beegfs_setup_1=beegfs-mgmtd --init --db-file /mnt/mgmt_tgt_mgmt01/mgmtd.sqlite --log-target stderr
+    # Enable the line below if you have license key in the environment variable
+    #   - BEEGFS_LICENSE_FILE_DATA=$BEEGFS_LICENSE_FILE_DATA
+    volumes:
+      - ./beegfs/mgmt_tgt_mgmt01:/mnt/mgmt_tgt_mgmt01
+      - ./beegfs-configs/beegfs-mgmtd.toml:/etc/beegfs/beegfs-mgmtd.toml
+      # - ./certs/key.pem:/etc/beegfs/key.pem
+      # - ./certs/cert.pem:/etc/beegfs/cert.pem
+      # - ./certs/conn.auth:/etc/beegfs/conn.auth:ro
+
+  beegfs-meta:
+    image: ghcr.io/thinkparq/beegfs-meta:8.1
+    container_name: beegfs-meta
+    privileged: true
+    network_mode: "host"
+    cap_add:
+      - IPC_LOCK      
+    command: "storeMetaDirectory=/mnt/meta_01_tgt_0101 storeAllowFirstRunInit=false connInterfacesList=${INTERFACES} sysMgmtdHost=localhost connDisableAuthentication=true"
+    environment:
+      - beegfs_setup_1=beegfs-setup-meta -C -p /mnt/meta_01_tgt_0101 -s 1 -S meta_01
+    volumes:
+      - ./beegfs/meta_01_tgt_0101:/mnt/meta_01_tgt_0101
+      - ./beegfs-configs/beegfs-meta.toml:/etc/beegfs/beegfs-meta.toml
+      # - ./certs/key.pem:/etc/beegfs/key.pem
+      # - ./certs/cert.pem:/etc/beegfs/cert.pem
+      # - ./certs/conn.auth:/etc/beegfs/conn.auth
+
+  beegfs-storage:
+    image: ghcr.io/thinkparq/beegfs-storage:8.1
+    container_name: beegfs-storage
+    privileged: true
+    network_mode: "host"
+    cap_add:
+      - IPC_LOCK    
+    command: "storeStorageDirectory=/mnt/stor_01_tgt_101,/mnt/stor_01_tgt_102 storeAllowFirstRunInit=false connInterfacesList=${INTERFACES} sysMgmtdHost=localhost tuneUsePerUserMsgQueues=false connDisableAuthentication=true"
+    environment:
+      - beegfs_setup_1=beegfs-setup-storage -C -p /mnt/stor_01_tgt_101 -s 1 -S stor_01_tgt_101 -i 101
+      - beegfs_setup_2=beegfs-setup-storage -C -p /mnt/stor_01_tgt_102 -s 1 -S stor_01_tgt_101 -i 102
+    volumes:
+      - ./beegfs/stor_01_tgt_101:/mnt/stor_01_tgt_101
+      - ./beegfs/stor_01_tgt_102:/mnt/stor_01_tgt_102
+      - ./beegfs-configs/beegfs-storage.toml:/etc/beegfs/beegfs-storage.toml
+      # - ./certs/key.pem:/etc/beegfs/key.pem
+      # - ./certs/cert.pem:/etc/beegfs/cert.pem
+      # - ./certs/conn.auth:/etc/beegfs/conn.auth
+
+  beegfs-client-nfs:
+    build: 
+      context: .
+      target: beegfs-client-nfs
+      args:
+        BEEGFS_VERSION: ${BEEGFS_VERSION}
+    container_name: beegfs-client-nfs
+    privileged: true
+    network_mode: "host"
+    cap_add:
+      - IPC_LOCK
+      - SYS_ADMIN  # Required for mounting BeeGFS and NFS operations
+    entrypoint: ["/nfs-entrypoint.sh"]
+    environment:
+      - BEEGFS_CLIENT_TYPE=nfs
+    depends_on:
+      - beegfs-management
+      - beegfs-meta
+      - beegfs-storage
+    volumes:
+      - ./nfs/entrypoint.sh:/nfs-entrypoint.sh:ro  # Mount NFS entrypoint script
+      - ./beegfs/nfs-exports:/exports               # NFS export directory
+      - /lib/modules:/lib/modules:ro                # Host kernel modules for BeeGFS client
+      - ./certs/conn.auth:/etc/beegfs/conn.auth
+      - ./certs/cert.pem:/etc/beegfs/cert.pem:ro  # BeeGFS TLS certificate
+      - ./certs/key.pem:/etc/beegfs/key.pem:ro   # BeeGFS TLS private key
+    # Note: BeeGFS will be mounted inside the container at /mnt/beegfs and exported via NFSv4.1
+    # Ports are automatically available on host due to network_mode: host
+
+  beegfs-client-combined:
+    build: 
+      context: .
+      target: beegfs-client-combined
+      args:
+        BEEGFS_VERSION: ${BEEGFS_VERSION}
+    container_name: beegfs-client-combined
+    privileged: true
+    network_mode: "host"
+    cap_add:
+      - IPC_LOCK
+      - SYS_ADMIN  # Required for mounting BeeGFS and NFS operations
+    environment:
+      - BEEGFS_CLIENT_TYPE=combined
+      - ROOT_ACCESS_KEY_ID=beegfs_s3_admin
+      - ROOT_SECRET_ACCESS_KEY=beegfs_s3_admin_secret
+      - VGW_CHOWN_UID=1000  # Set ownership of BeeGFS mount for Versity to your host UID:GID
+      - VGW_CHOWN_GID=1000
+      - VGW_PORT=7070      # S3 API port
+      - VGW_IP=0.0.0.0     # Be careful with this if you don't have a firewall
+    depends_on:
+      - beegfs-management
+      - beegfs-meta  
+      - beegfs-storage
+    volumes:
+      - ./combined/entrypoint.sh:/combined-entrypoint.sh:ro  # Mount combined entrypoint script
+      - ./s3/meta:/metadata:rw                              # Persistent metadata storage for S3 gateway
+      - ./beegfs/nfs-exports:/exports                       # NFS export directory
+      - /lib/modules:/lib/modules:ro                        # Host kernel modules for BeeGFS client
+      - ./certs/conn.auth:/etc/beegfs/conn.auth             # BeeGFS connection auth file (required)
+      - ./certs/cert.pem:/etc/beegfs/cert.pem:ro            # BeeGFS TLS certificate (TLS is not used)
+      - ./certs/key.pem:/etc/beegfs/key.pem:ro              # BeeGFS TLS private key (TLS not used)
+    # Note: BeeGFS will be mounted inside the container at /mnt/beegfs
+    # Available via both NFS (ports 111, 2049) and S3 API (port 7070)
+    # NFS: nfs4://host/mnt/beegfs  |  S3: http://host:7070
+
+  beegfs-client-s3:
+    build: 
+      context: .
+      target: beegfs-client-s3
+      args:
+        BEEGFS_VERSION: ${BEEGFS_VERSION}
+    container_name: beegfs-client-s3
+    privileged: true
+    network_mode: "host"
+    cap_add:
+      - IPC_LOCK
+      - SYS_ADMIN  # Required for mounting BeeGFS
+    environment:
+      - BEEGFS_CLIENT_TYPE=s3
+      - ROOT_ACCESS_KEY_ID=beegfs_s3_admin
+      - ROOT_SECRET_ACCESS_KEY=beegfs_s3_admin_secret
+      - VGW_CHOWN_UID=1000  # Set ownership of BeeGFS mount for Versity to your host UID:GID
+      - VGW_CHOWN_GID=1000
+      # - VGW_CERT=/certs/s3.crt  # S3 TLS certificate isn't used, but it could be
+      # - VGW_KEY=/certs/s3.key
+      - VGW_PORT=7070
+      - VGW_IP=0.0.0.0  # Be careful with this if you don't have a firewall
+    depends_on:
+      - beegfs-management
+      - beegfs-meta  
+      - beegfs-storage
+    volumes:
+      - ./s3/entrypoint.sh:/s3-entrypoint.sh:ro  # Mount S3 entrypoint script
+      - ./s3/meta:/metadata:rw                     # Persistent metadata storage for S3 gateway
+      - ./beegfs/nfs-exports:/exports               # NFS export directory
+      - /lib/modules:/lib/modules:ro                # Host kernel modules for BeeGFS client
+      - ./certs/conn.auth:/etc/beegfs/conn.auth   # BeeGFS connection auth file (required)
+      - ./certs/cert.pem:/etc/beegfs/cert.pem:ro  # BeeGFS TLS certificate (TLS is not used)
+      - ./certs/key.pem:/etc/beegfs/key.pem:ro   # BeeGFS TLS private key (TLS not used)
+    # Note: BeeGFS will be mounted inside the container at /mnt/beegfs
+    # Ports are automatically available on host due to network_mode: host
+    # S3 gateway (like Versity Gateway) should be installed and configured separately

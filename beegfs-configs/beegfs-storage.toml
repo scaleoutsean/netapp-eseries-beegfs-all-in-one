@@ -1,0 +1,3 @@
+# BeeGFS Storage Service Configuration  
+# Disables requiring authentication
+conn-disable-authentication = true

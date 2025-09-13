@@ -1,0 +1,3 @@
+# BeeGFS Management Service Configuration
+# Disables requiring authentication (BeeMsg and gRPC).
+auth-disable = true
