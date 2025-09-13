@@ -82,7 +82,6 @@ If you use this, it is probably wise to use one service for read access and the 
    mkdir -p ./beegfs/stor_01_tgt_102
    mkdir -p ./beegfs/nfs-exports
    mkdir -p ./beegfs/s3-config
-
   ./generate-certs.sh
   ```
 
