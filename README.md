@@ -73,31 +73,29 @@ If you use this, it is probably wise to use one service for read access and the 
 
 ### Create 
 
-1. **Host Directories**: Create the following directories in cloned repository's root. Then edit the last line in `openssl.conf` - set it to use your host's IP address used to access S3, and generate certificates (currently mostly unused, but may be if reverse HTTPS proxy is added to the stack) and run `./generate-certs.sh`.
-   
-   ```bash
-   mkdir -p ./beegfs/mgmt_tgt_mgmt01
-   mkdir -p ./beegfs/meta_01_tgt_0101
-   mkdir -p ./beegfs/stor_01_tgt_101
-   mkdir -p ./beegfs/stor_01_tgt_102
-   mkdir -p ./beegfs/nfs-exports
-   mkdir -p ./beegfs/s3-config
-  ./generate-certs.sh
+1. **Host Directories**: Create the following directories in cloned repository's root. Then edit the last line in `openssl.conf` - set it to use your host's IP address used to access S3, and generate certificates (currently mostly unused, but may be if reverse HTTPS proxy is added to the stack) and run `./generate-certs.sh`.   
+  ```bash
+  mkdir -p ./beegfs/mgmt_tgt_mgmt01
+  mkdir -p ./beegfs/meta_01_tgt_0101
+  mkdir -p ./beegfs/stor_01_tgt_101
+  mkdir -p ./beegfs/stor_01_tgt_102
+  mkdir -p ./beegfs/nfs-exports
+  mkdir -p ./beegfs/s3-config
+  bash generate-certs.sh
   ```
 
-
 2. **Network Configuration**: All services use `network_mode: "host"` which is required for BeeGFS client connectivity. Modify firewall rules on the host to allow access to RPC portmapper, NFS, and S3 *from your host to your own host's IP address* (see examples in Troubleshooting). Do **not** open firewall ports to LAN clients unless you want them to be able to access stack services.
-```bash
-Status: active
+  ```bash
+  Status: active
 
-To                         Action      From
---                         ------      ----
-192.168.1.100 111/tcp       ALLOW       192.168.1.100
-192.168.1.100 111/udp       ALLOW       192.168.1.100
-192.168.1.100 7070/tcp      ALLOW       192.168.1.100
-192.168.1.100 2049/tcp      ALLOW       192.168.1.100
-192.168.1.100 2049/udp      ALLOW       192.168.1.100
-```
+  To                         Action      From
+  --                         ------      ----
+  192.168.1.100 111/tcp       ALLOW       192.168.1.100
+  192.168.1.100 111/udp       ALLOW       192.168.1.100
+  192.168.1.100 7070/tcp      ALLOW       192.168.1.100
+  192.168.1.100 2049/tcp      ALLOW       192.168.1.100
+  192.168.1.100 2049/udp      ALLOW       192.168.1.100
+  ```
 
 ## Usage
 
