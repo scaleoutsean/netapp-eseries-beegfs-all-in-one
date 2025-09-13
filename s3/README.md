@@ -63,8 +63,8 @@ Note that `versitygw` as CLI may be tricky, so the last example is there to show
 
 ## Security Notes
 
-- Default credentials are `minioadmin:minioadmin` - change for production
+- Default credentials are in `./docker-compose.yml`. Change them for production
 - Consider implementing proper IAM policies for S3 access
-- Use HTTPS in production environments
-- Implement network security groups/firewall rules appropriately
+- Deploy TLS-terminating reverse HTTPS proxy in front of Versity S3 Gateway in production environments
+- Implement ACLs and network security groups/firewall rules appropriately
 
